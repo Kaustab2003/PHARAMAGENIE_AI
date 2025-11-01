@@ -1,0 +1,64 @@
+# --- Python ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.log
+
+# --- Virtual Environment ---
+venv/
+env/
+ENV/
+.venv/
+
+# --- Streamlit ---
+.streamlit/
+
+# --- Environment / Secrets ---
+.env
+*.env
+
+# --- Sensitive configuration files ---
+config/config.json
+*.json
+!config/schema.json   # (optional: keep other safe JSONs if needed)
+
+
+
+
+
+# --- VSCode / IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Backup / Temporary files ---
+backup_*/
+*.bak
+*.tmp
+*.old
+
+# --- OS Files ---
+.DS_Store
+Thumbs.db
+
+# --- Cache & build artifacts ---
+*.egg-info/
+.eggs/
+build/
+dist/
+*.spec
+
+# --- Logs ---
+logs/
+*.log
+
+# --- Jupyter / IPython ---
+.ipynb_checkpoints/
+
+# --- Other folders to ignore ---
+__cache__/
+temp/
+tmp/

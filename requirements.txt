@@ -1,0 +1,51 @@
+# Core Dependencies
+fastapi
+uvicorn
+websockets
+python-jose[cryptography]
+passlib[bcrypt]
+python-multipart
+python-dotenv
+
+# Streamlit and UI
+streamlit
+streamlit-aggrid
+streamlit-extras
+
+# Data Processing
+pandas
+numpy
+openai
+pydantic
+requests
+
+# Visualization
+plotly
+py3Dmol
+stmol
+pillow
+
+# PDF and Reporting
+fpdf2
+reportlab
+xlsxwriter
+
+# Chemistry and Structure
+rdkit
+
+# Utilities
+tqdm
+python-dateutil
+pytz
+python-slugify
+
+# Security
+email-validator
+cryptography
+
+# Additional Dependencies
+ratelimit
+feedparser
+lxml
+beautifulsoup4
+ipython-genutils
