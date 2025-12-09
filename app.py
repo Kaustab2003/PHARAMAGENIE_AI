@@ -717,17 +717,32 @@ def test_email_connection():
             st.error(f"❌ {message}")
             
             # Provide troubleshooting steps
-            with st.expander("Troubleshooting Steps"):
+            with st.expander("🔧 Troubleshooting Steps", expanded=True):
                 st.markdown("""
-                ### Common Solutions:
+                ### ⚠️ Gmail Authentication Error
                 
-                1. **For Gmail Users:**
-                   - Make sure you've enabled 'Less secure app access' or
-                   - Use an App Password if you have 2FA enabled
+                **The most common issue is using your regular Gmail password instead of an App Password.**
+                
+                ### ✅ How to Fix:
+                
+                1. **Generate Gmail App Password:**
+                   - Go to: [https://myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords)
+                   - Enable 2-Factor Authentication first (if not enabled)
+                   - Select "Mail" and "Windows Computer"
+                   - Click "Generate"
+                   - Copy the 16-character password (remove spaces)
                    
-                2. **Check your credentials:**
+                2. **Update your .env file:**
+                   - Open `.env` in your project folder
+                   - Update `SENDER_PASSWORD` with the App Password
+                   - Save and restart the app
+                   
+                3. **Check your credentials:**
                    - Verify SMTP_SERVER, SMTP_PORT, SENDER_EMAIL, and SENDER_PASSWORD in your .env file
                    - Make sure there are no extra spaces in the values
+                
+                ### 📖 Full Guide
+                See `EMAIL_TROUBLESHOOTING.md` for detailed instructions
                    
                 3. **Firewall/Antivirus:**
                    - Temporarily disable any firewall or antivirus that might block the connection

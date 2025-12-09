@@ -42,7 +42,17 @@ class EmailService:
                     return False, "Missing email credentials"
                     
         except smtplib.SMTPAuthenticationError as e:
-            return False, f"Authentication failed: {str(e)}"
+            error_msg = (
+                f"Authentication failed: {str(e)}\n\n"
+                "Troubleshooting Steps:\n"
+                "1. Ensure 2-Factor Authentication is enabled on your Gmail account\n"
+                "2. Generate a new App Password at: https://myaccount.google.com/apppasswords\n"
+                "3. Update SENDER_PASSWORD in your .env file with the 16-character app password\n"
+                "4. DO NOT use your regular Gmail password\n"
+                "5. Make sure there are no spaces in the app password\n"
+                "6. Restart the application after updating .env"
+            )
+            return False, error_msg
         except smtplib.SMTPException as e:
             return False, f"SMTP error occurred: {str(e)}"
         except Exception as e:
@@ -135,7 +145,22 @@ class EmailService:
             return True, "Email sent successfully"
             
         except smtplib.SMTPAuthenticationError as e:
-            error_msg = f"Authentication failed: {str(e)}. Please check your email credentials and app password settings."
+            error_msg = (
+                f"Authentication failed: {str(e)}\n\n"
+                "⚠️ Gmail Authentication Error:\n"
+                "Your Gmail password was rejected. This usually means:\n\n"
+                "1. You're using your regular Gmail password instead of an App Password\n"
+                "2. Your App Password has expired or is incorrect\n\n"
+                "✅ How to Fix:\n"
+                "1. Go to: https://myaccount.google.com/apppasswords\n"
+                "2. Sign in to your Google Account\n"
+                "3. Select 'Mail' and 'Windows Computer' (or Other)\n"
+                "4. Click 'Generate' to get a 16-character password\n"
+                "5. Copy this password (remove spaces)\n"
+                "6. Update SENDER_PASSWORD in your .env file\n"
+                "7. Restart the application\n\n"
+                "📝 Note: 2-Factor Authentication must be enabled on your Gmail account"
+            )
             logger.error(error_msg)
             return False, error_msg
             
