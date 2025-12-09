@@ -10,8 +10,3 @@ libglib2.0-0
 libcairo2
 libxcb1
 libgomp1
-
-# Notes: Streamlit Community Cloud will install packages listed here via apt.
-# This list addresses common rendering/system libs required by RDKit's
-# drawing modules (libXrender, X11, GL). If you still see errors, add any
-# additional missing libraries reported by the runtime.
