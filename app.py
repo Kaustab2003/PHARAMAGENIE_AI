@@ -597,7 +597,14 @@ async def main_app():
 
     page = st.sidebar.radio(
         "Navigation",
-        ["Analysis", "Analytics", "Email Reports"]
+        [
+            "Analysis",
+            "💊 Drug Explorer",
+            "🚀 Advanced AI Features",
+            "🔗 Drug Interactions",
+            "Analytics",
+            "Email Reports"
+        ]
     )
     
     # Progress bar in sidebar
@@ -615,6 +622,15 @@ async def main_app():
     # Page routing
     if page == "Analysis":
         await handle_analysis_page()
+    elif page == "💊 Drug Explorer":
+        from pages.drug_explorer import render_drug_explorer_page
+        render_drug_explorer_page()
+    elif page == "🚀 Advanced AI Features":
+        from pages.advanced_features import render_advanced_features_page
+        render_advanced_features_page()
+    elif page == "🔗 Drug Interactions":
+        from pages.interaction_network import render_interaction_network_page
+        render_interaction_network_page()
     elif page == "Batch Processing":
         show_batch_processing()
     elif page == "Molecule Visualizer":
@@ -632,9 +648,15 @@ async def main_app():
 async def handle_analysis_page():
     """Handle the analysis page by separating form submission from result display."""
     display_welcome()
+    
+    # Check for saved search query from voice assistant
+    default_drug = ""
+    if 'drug_search_query' in st.session_state and st.session_state.get('drug_search_query'):
+        st.info(f"🎤 Voice Assistant suggested: **{st.session_state['drug_search_query']}**")
+        default_drug = st.session_state['drug_search_query']
 
     with st.form("drug_analysis_form"):
-        drug_name = st.text_input("Drug Name", placeholder="Enter drug name")
+        drug_name = st.text_input("Drug Name", value=default_drug, placeholder="Enter drug name")
         therapeutic_area = st.text_input(
             "Therapeutic Area (optional)",
             placeholder="e.g., Oncology"

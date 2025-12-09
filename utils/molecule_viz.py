@@ -64,87 +64,6 @@ from PIL import Image
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from urllib.parse import quote_plus
-
-class MoleculeVisualizer:
-    """Class for generating and manipulating molecular visualizations."""
-    
-    def __init__(self) -> None:
-        """Initialize the MoleculeVisualizer class."""
-        self._check_rdkit_available()
-    
-    @staticmethod
-    def _check_rdkit_available() -> None:
-        """Check if RDKit is available and raise error if not."""
-        if not RDKit_AVAILABLE:
-            raise ImportError(
-                "RDKit is required for molecule visualization. "
-                "Please install it first using: pip install rdkit"
-            )
-    
-    def generate_molecule_image(
-        self, 
-        smiles: str, 
-        size: tuple[int, int] = (300, 300)
-    ) -> Optional[Image.Image]:
-        """
-        Generate a 2D image of a molecule from its SMILES string.
-        
-        Args:
-            smiles: SMILES notation of the molecule
-            size: Tuple of (width, height) for the image
-            
-        Returns:
-            PIL Image object or None if generation fails
-            
-        Raises:
-            ImportError: If RDKit is not available
-            ValueError: If SMILES string is invalid
-        """
-        try:
-            self._check_rdkit_available()
-            
-            if not smiles:
-                raise ValueError("SMILES string cannot be empty")
-                
-            # Convert SMILES to RDKit molecule
-            mol = Chem.MolFromSmiles(smiles)
-            if mol is None:
-                raise ValueError(f"Invalid SMILES string: {smiles}")
-                
-            # Generate 2D coordinates if they don't exist
-            if not mol.GetNumConformers():
-                rdDepictor.Compute2DCoords(mol)
-                
-            # Draw the molecule
-            return Draw.MolToImage(mol, size=size)
-            
-        except ImportError:
-            st.error("RDKit is not available. Some features will be disabled.")
-            return None
-        except ValueError as e:
-            st.error(str(e))
-            return None
-        except Exception as e:
-            st.error(f"Error generating molecule image: {str(e)}")
-            return None
-            
-        try:
-            # Convert SMILES to molecule
-            mol = Chem.MolFromSmiles(smiles)
-            if mol is None:
-                return None
-                
-            # Generate 2D coordinates if needed
-            if not mol.GetNumConformers():
-                rdDepictor.Compute2DCoords(mol)
-                
-            # Draw the molecule
-            img = Draw.MolToImage(mol, size=size)
-            return img
-            
-        except Exception as e:
-            st.error(f"Error generating molecule image: {str(e)}")
-            return None
 from functools import lru_cache
 
 
@@ -194,6 +113,45 @@ class MoleculeVisualizer:
             )
             return False
         return True
+    
+    def generate_molecule_image(
+        self, 
+        smiles: str, 
+        size: tuple[int, int] = (300, 300)
+    ) -> Optional[Image.Image]:
+        """
+        Generate a 2D image of a molecule from its SMILES string.
+        
+        Args:
+            smiles: SMILES notation of the molecule
+            size: Tuple of (width, height) for the image
+            
+        Returns:
+            PIL Image object or None if generation fails
+        """
+        if not self._ensure_rdkit():
+            return None
+            
+        try:
+            if not smiles:
+                return None
+                
+            # Convert SMILES to RDKit molecule
+            mol = Chem.MolFromSmiles(smiles)
+            if mol is None:
+                st.warning(f"Could not parse SMILES: {smiles}")
+                return None
+                
+            # Generate 2D coordinates if they don't exist
+            if not mol.GetNumConformers():
+                rdDepictor.Compute2DCoords(mol)
+                
+            # Draw the molecule
+            return Draw.MolToImage(mol, size=size)
+            
+        except Exception as e:
+            st.error(f"Error generating molecule image: {str(e)}")
+            return None
         
     def _create_session(self):
         """Create a requests session with retry logic."""

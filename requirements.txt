@@ -49,3 +49,19 @@ feedparser
 lxml
 beautifulsoup4
 ipython-genutils
+
+# Patent-Worthy Features Dependencies
+networkx  # For drug interaction network visualization
+scipy  # For pharmacokinetic modeling
+scikit-learn # For ML-based predictions
+aiohttp  # For async API calls
+asyncio  # For concurrent operations
+
+# Voice Assistant (Optional - uncomment if using)
+SpeechRecognition>=3.10.0  # For speech-to-text
+pydub>=0.25.1  # For audio processing
+sounddevice>=0.4.6  # For audio recording
+
+# Web3 & Blockchain (Optional - uncomment if using)
+# web3  # For blockchain integration
+# eth-account  # For Ethereum accounts

@@ -171,6 +171,13 @@ def main():
     molecular structure, safety information, and interactions - all powered by free APIs.
     """)
     
+    # Check for saved search query from voice assistant
+    if 'drug_search_query' in st.session_state and st.session_state.get('drug_search_query'):
+        st.info(f"🎤 Voice Assistant suggested: **{st.session_state['drug_search_query']}**")
+        default_drug = st.session_state['drug_search_query']
+    else:
+        default_drug = ""
+    
     # Initialize services
     fetcher = DrugInfoFetcher()
     
@@ -180,6 +187,7 @@ def main():
     with col1:
         drug_name = st.text_input(
             "🔍 Enter Drug Name:",
+            value=default_drug,
             placeholder="e.g., Aspirin, Ibuprofen, Metformin",
             help="Enter the generic or brand name of the drug"
         )
@@ -262,6 +270,10 @@ def main():
         f"</div>",
         unsafe_allow_html=True
     )
+
+def render_drug_explorer_page():
+    """Wrapper function for rendering the drug explorer page."""
+    main()
 
 if __name__ == "__main__":
     main()

@@ -445,7 +445,9 @@ class DrugInfoFetcher:
                             interaction_texts.append(f"- {drug}:\n  {desc}")
                         else:
                             interaction_texts.append(f"- {drug}")
-                    details['interactions'] = "\n".join(interaction_texts)            # Get safety information
+                    details['interactions'] = "\n".join(interaction_texts)
+            
+            # Get safety information
             safety_info = []
             if details.get('adverse_effects') and details['adverse_effects'] != 'Information not available':
                 safety_info.append(f"Adverse Effects:\n{details['adverse_effects']}")
@@ -454,7 +456,9 @@ class DrugInfoFetcher:
             if safety_info:
                 details['safety_info'] = "\n\n".join(safety_info)
             else:
-                details['safety_info'] = "No detailed safety information available in database"            # Get PubChem information
+                details['safety_info'] = "No detailed safety information available in database"
+            
+            # Get PubChem information
             pubchem_info = self.get_pubchem_info(drug_name)
             if pubchem_info:
                 details['mechanism'] = pubchem_info.get('description', 'Mechanism of action not available')
@@ -472,10 +476,122 @@ class DrugInfoFetcher:
                 if smiles:
                     details['smiles'] = smiles
             
+            # Use AI to fill in missing information
+            details = self._enhance_with_ai(details, drug_name)
+            
             return details
             
         except Exception as e:
             logger.error(f"Error fetching comprehensive info for {drug_name}: {str(e)}")
+            return details
+    
+    def _enhance_with_ai(self, details: Dict, drug_name: str) -> Dict:
+        """Use AI to fill in missing drug information, with fallback to static database."""
+        
+        # Static knowledge base for common drugs
+        drug_knowledge = {
+            'metformin': {
+                'dosage': 'Initial: 500 mg twice daily or 850 mg once daily with meals. Maximum: 2,550 mg/day in divided doses. Extended-release: 500-2,000 mg once daily with evening meal.',
+                'mechanism': 'Decreases hepatic glucose production, decreases intestinal absorption of glucose, and improves insulin sensitivity by increasing peripheral glucose uptake and utilization.',
+                'smiles': 'CN(C)C(=N)NC(=N)N'
+            },
+            'aspirin': {
+                'dosage': 'Pain/fever: 325-650 mg every 4-6 hours. Cardiovascular protection: 75-325 mg once daily. Maximum: 4,000 mg/day for pain.',
+                'mechanism': 'Inhibits cyclooxygenase (COX) enzymes, reducing prostaglandin synthesis. Irreversibly acetylates COX-1 and COX-2, preventing platelet aggregation and reducing inflammation, pain, and fever.',
+                'smiles': 'CC(=O)Oc1ccccc1C(=O)O'
+            },
+            'ibuprofen': {
+                'dosage': 'Adults: 200-400 mg every 4-6 hours as needed. Maximum: 3,200 mg/day (prescription strength) or 1,200 mg/day (OTC).',
+                'mechanism': 'Nonsteroidal anti-inflammatory drug (NSAID) that inhibits COX-1 and COX-2 enzymes, reducing prostaglandin synthesis and providing anti-inflammatory, analgesic, and antipyretic effects.',
+                'smiles': 'CC(C)Cc1ccc(cc1)C(C)C(=O)O'
+            },
+            'lisinopril': {
+                'dosage': 'Hypertension: Initial 10 mg once daily, usual range 20-40 mg/day. Heart failure: Initial 5 mg once daily, target 20-40 mg/day.',
+                'mechanism': 'ACE inhibitor that prevents conversion of angiotensin I to angiotensin II, reducing vasoconstriction and aldosterone secretion, thereby lowering blood pressure and reducing cardiac workload.',
+                'smiles': 'NCCCC[C@H](N[C@@H](CCc1ccccc1)C(=O)O)C(=O)N1CCC[C@H]1C(=O)O'
+            },
+            'atorvastatin': {
+                'dosage': 'Initial: 10-20 mg once daily. Usual range: 10-80 mg once daily. Can be taken at any time without regard to meals.',
+                'mechanism': 'HMG-CoA reductase inhibitor (statin) that competitively inhibits the rate-limiting enzyme in cholesterol biosynthesis, reducing LDL cholesterol and total cholesterol levels.',
+                'smiles': 'CC(C)c1c(c(c(n1CC[C@H](C[C@H](CC(=O)O)O)O)c2ccc(cc2)F)c3ccccc3)C(=O)Nc4ccccc4'
+            },
+            'omeprazole': {
+                'dosage': 'GERD: 20 mg once daily for 4-8 weeks. H. pylori: 20 mg twice daily (with antibiotics). Best taken before meals.',
+                'mechanism': 'Proton pump inhibitor that suppresses gastric acid secretion by irreversibly blocking the H+/K+-ATPase enzyme system in gastric parietal cells.',
+                'smiles': 'COc1ccc2c(c1)[nH]c(n2)S(=O)Cc3ncc(c(c3C)OC)C'
+            }
+        }
+        
+        drug_lower = drug_name.lower()
+        
+        # Check static knowledge base first
+        if drug_lower in drug_knowledge:
+            knowledge = drug_knowledge[drug_lower]
+            if details.get('dosage') == 'Information not available' or details.get('dosage') == 'Dosage information not available':
+                details['dosage'] = knowledge.get('dosage', details['dosage'])
+            if details.get('mechanism') in ['Information not available', 'Mechanism of action not available', 'Description not available']:
+                details['mechanism'] = knowledge.get('mechanism', details['mechanism'])
+            if not details.get('smiles') or details['smiles'] == 'Not available':
+                details['smiles'] = knowledge.get('smiles', details.get('smiles'))
+            return details
+        
+        # Try AI enhancement for drugs not in static database
+        try:
+            from utils.api_client import get_api_client
+            
+            missing_fields = []
+            if details.get('dosage') in ['Information not available', 'Dosage information not available']:
+                missing_fields.append('dosage')
+            if details.get('mechanism') in ['Information not available', 'Mechanism of action not available', 'Description not available']:
+                missing_fields.append('mechanism')
+            if not details.get('smiles'):
+                missing_fields.append('structure')
+            
+            if not missing_fields:
+                return details
+            
+            # Get AI-powered information
+            api_client = get_api_client()
+            
+            prompt = f"""Provide concise information for the drug "{drug_name}":
+"""
+            
+            if 'dosage' in missing_fields:
+                prompt += "\n1. DOSAGE: Typical adult dosage (2-3 sentences)"
+            if 'mechanism' in missing_fields:
+                prompt += "\n2. MECHANISM OF ACTION: How the drug works (2-3 sentences)"
+            if 'structure' in missing_fields:
+                prompt += "\n3. SMILES: SMILES notation for molecular structure (just the SMILES string)"
+            
+            prompt += "\n\nFormat your response as:\nDOSAGE: [info]\nMECHANISM: [info]\nSMILES: [notation]"
+            
+            response = api_client.chat_completion(
+                messages=[
+                    {"role": "system", "content": "You are a pharmaceutical database assistant. Provide accurate, concise drug information."},
+                    {"role": "user", "content": prompt}
+                ],
+                temperature=0.3,
+                max_tokens=300
+            )
+            
+            content = response.choices[0].message.content
+            if content:
+                # Parse response
+                lines = content.strip().split('\n')
+                for line in lines:
+                    if line.startswith('DOSAGE:') and 'dosage' in missing_fields:
+                        details['dosage'] = line.replace('DOSAGE:', '').strip()
+                    elif line.startswith('MECHANISM:') and 'mechanism' in missing_fields:
+                        details['mechanism'] = line.replace('MECHANISM:', '').strip()
+                    elif line.startswith('SMILES:') and 'structure' in missing_fields:
+                        smiles = line.replace('SMILES:', '').strip()
+                        if smiles and smiles != 'Not available':
+                            details['smiles'] = smiles
+            
+            return details
+            
+        except Exception as e:
+            logger.error(f"Error enhancing with AI: {str(e)}")
             return details
 
     def get_smiles(self, drug_name: str) -> Optional[str]:

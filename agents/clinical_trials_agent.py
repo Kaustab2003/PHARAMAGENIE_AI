@@ -178,16 +178,18 @@ class ClinicalTrialsAgent:
 
     def _search_clinicaltrials(self, drug_name: str, condition: str = "") -> Optional[Dict[str, Any]]:
         """Search for clinical trials using ClinicalTrials.gov API v2."""
-        # Broader search expression
-        search_expr = f'AREA[Intervention] "{drug_name}"'
+        # Updated API v2 query format
+        query_terms = [drug_name]
         if condition:
-            search_expr += f' AND AREA[Condition] "{condition}"'
-
+            query_terms.append(condition)
+        
+        # Build proper query.term for API v2
+        query_cond = " AND ".join(query_terms)
+        
         params = {
-            'expr': search_expr,
-            'fmt': 'json',
-            'pageSize': '20',
-            'sort': 'LastUpdatePostDate:desc'
+            'query.term': query_cond,
+            'format': 'json',
+            'pageSize': 20
         }
         
         try:
@@ -199,7 +201,21 @@ class ClinicalTrialsAgent:
                 if processed and processed.get('trials'):
                     return processed
             
-            logger.warning("No studies found with the initial search.")
+            # Try alternative search with just intervention filter
+            logger.info("Trying alternative search with filter.intervention parameter...")
+            alt_params = {
+                'filter.intervention': drug_name,
+                'format': 'json',
+                'pageSize': 20
+            }
+            data = self._get_with_retry(self.CLINICALTRIALS_API_V2, params=alt_params)
+            
+            if data and data.get('studies'):
+                processed = self._process_api_response(data)
+                if processed and processed.get('trials'):
+                    return processed
+            
+            logger.warning("No studies found with any search strategy.")
             return None
 
         except Exception as e:
@@ -211,6 +227,12 @@ class ClinicalTrialsAgent:
         phase_ii = phase_iii = 0
         recent_trials = []
         insights = []
+        
+        # Extract total count from API v2 response
+        total_count = data.get('totalCount', 0)
+        if total_count == 0 and 'studies' in data:
+            # Fallback: if totalCount not provided, use studies array length
+            total_count = len(data.get('studies', []))
         
         for study in data.get('studies', [])[:10]:  # Limit to 10 most recent
             trial = self._process_trial(study)
@@ -244,7 +266,7 @@ class ClinicalTrialsAgent:
             'trials': recent_trials,
             'insights': insights[:5],  # Limit to 5 insights
             'source': 'clinicaltrials.gov',
-            'total_count': data.get('totalCount', 0)
+            'total_count': total_count
         }
     
     def get_clinical_trials(self, drug_name: str, condition: str = "") -> Dict[str, Any]:
