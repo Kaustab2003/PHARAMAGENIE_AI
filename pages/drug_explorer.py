@@ -140,18 +140,27 @@ def display_drug_information(drug_info: dict):
         st.subheader("💊 Drug-Drug Interactions")
         
         interactions = drug_info['drug_interactions']
-        if interactions and interactions[0]['drug'] != "No major interactions found":
+        
+        # Check for error states
+        if interactions and interactions[0]['drug'] in ["Could not find drug in database", "Error fetching drug information"]:
+            st.error("❌ " + interactions[0]['drug'])
+            st.info("💡 This might be due to the drug name spelling or the drug not being in the RxNav database. Try using the generic name or a common brand name.")
+        elif not interactions or interactions[0]['drug'] == "No major interactions found":
+            st.success("✅ No major drug interactions found in database")
+            if interactions and interactions[0].get('description'):
+                st.info(interactions[0]['description'])
+            else:
+                st.info("Always inform your healthcare provider about all medications you're taking.")
+        else:
             st.warning(f"⚠️ Found {len(interactions)} potential interactions")
             
             for i, interaction in enumerate(interactions, 1):
-                with st.expander(f"{i}. {interaction['drug']}"):
+                severity_icon = "🔴" if "severe" in interaction.get('description', '').lower() else "🟡"
+                with st.expander(f"{severity_icon} {i}. {interaction['drug']}"):
                     if interaction.get('description'):
                         st.write(interaction['description'])
                     else:
                         st.write("Interaction details not available. Consult healthcare provider.")
-        else:
-            st.success("✅ No major drug interactions found in database")
-            st.info("Always inform your healthcare provider about all medications you're taking.")
     
     # Tab 5: Molecular Structure
     with tab5:

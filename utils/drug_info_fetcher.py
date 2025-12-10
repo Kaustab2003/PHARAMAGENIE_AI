@@ -172,7 +172,7 @@ class DrugInfoFetcher:
             return unique_interactions
             
         # No interactions found from any source
-        return [{"drug": "No known interactions", "description": ""}]
+        return [{"drug": "No major interactions found", "description": "This drug has no major known interactions in the database. Always consult your healthcare provider before combining medications."}]
     
     def get_drug_properties(self, rxcui: str) -> Dict:
         """Get comprehensive drug properties from RxNav"""
@@ -817,8 +817,8 @@ class DrugInfoFetcher:
                 drug_class = self.get_drug_class(rxcui)
                 result["drug_class"] = drug_class
                 
-                # Get interactions
-                interactions = self.get_drug_interactions(rxcui)
+                # Get interactions (pass drug_name, not rxcui)
+                interactions = self.get_drug_interactions(drug_name)
                 result["drug_interactions"] = interactions
                 
                 # Get adverse effects
