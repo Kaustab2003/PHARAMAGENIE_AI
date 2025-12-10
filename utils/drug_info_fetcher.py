@@ -88,6 +88,90 @@ class DrugInfoFetcher:
             logger.error(f"Error fetching drug class for RxCUI {rxcui}: {str(e)}")
             return "Classification not available"
     
+    def _get_common_drug_interactions(self, drug_name: str) -> List[Dict[str, str]]:
+        """
+        Get common drug interactions from built-in database for well-known drugs.
+        Fallback when API sources are unavailable.
+        
+        Args:
+            drug_name: Name of the drug (case-insensitive)
+            
+        Returns:
+            List of common drug interactions
+        """
+        # Common drug interactions database
+        common_interactions = {
+            "aspirin": [
+                {"drug": "Warfarin", "description": "Increased risk of bleeding. Aspirin enhances the anticoagulant effect of warfarin, which may lead to serious bleeding complications."},
+                {"drug": "Ibuprofen", "description": "Reduced cardiovascular protection. Ibuprofen may interfere with aspirin's antiplatelet effects when taken regularly."},
+                {"drug": "Naproxen", "description": "Increased risk of gastrointestinal bleeding and ulcers when NSAIDs are combined."},
+                {"drug": "Clopidogrel", "description": "Significantly increased bleeding risk. Both drugs affect platelet function, leading to enhanced antiplatelet effects."},
+                {"drug": "Methotrexate", "description": "Aspirin may increase methotrexate toxicity by reducing its renal clearance."},
+                {"drug": "ACE Inhibitors", "description": "Aspirin may reduce the effectiveness of ACE inhibitors in treating hypertension and heart failure."},
+            ],
+            "ibuprofen": [
+                {"drug": "Aspirin", "description": "Reduced cardiovascular protection from aspirin. Ibuprofen may interfere with aspirin's antiplatelet effects."},
+                {"drug": "Warfarin", "description": "Increased risk of bleeding due to antiplatelet effects and GI irritation."},
+                {"drug": "Lithium", "description": "Ibuprofen may increase lithium blood levels, potentially leading to toxicity."},
+                {"drug": "Methotrexate", "description": "Reduced renal clearance of methotrexate may lead to increased toxicity."},
+                {"drug": "ACE Inhibitors", "description": "May reduce the antihypertensive effect and increase risk of kidney problems."},
+            ],
+            "metformin": [
+                {"drug": "Contrast Dye", "description": "Increased risk of lactic acidosis. Metformin should be temporarily discontinued before and after procedures using iodinated contrast."},
+                {"drug": "Alcohol", "description": "Increased risk of lactic acidosis and may enhance blood glucose-lowering effect."},
+                {"drug": "Cimetidine", "description": "May increase metformin blood levels by reducing kidney clearance."},
+                {"drug": "Furosemide", "description": "May increase metformin levels and decrease furosemide levels through renal effects."},
+            ],
+            "warfarin": [
+                {"drug": "Aspirin", "description": "Significantly increased bleeding risk. Both drugs affect blood clotting through different mechanisms."},
+                {"drug": "NSAIDs", "description": "Increased risk of bleeding and gastric ulceration."},
+                {"drug": "Antibiotics", "description": "Many antibiotics can enhance warfarin's effect by reducing vitamin K production."},
+                {"drug": "Amiodarone", "description": "Significantly increases warfarin effect, requiring dose reduction and close INR monitoring."},
+                {"drug": "Acetaminophen", "description": "Regular use may increase INR, though occasional use is generally safe."},
+            ],
+            "lisinopril": [
+                {"drug": "NSAIDs", "description": "May reduce the antihypertensive effect and increase risk of kidney dysfunction."},
+                {"drug": "Potassium Supplements", "description": "Increased risk of hyperkalemia (high potassium levels)."},
+                {"drug": "Lithium", "description": "May increase lithium levels, potentially causing toxicity."},
+                {"drug": "Diuretics", "description": "May cause excessive blood pressure lowering, especially with first dose."},
+            ],
+            "atorvastatin": [
+                {"drug": "Grapefruit Juice", "description": "May significantly increase atorvastatin levels, raising the risk of side effects including muscle damage."},
+                {"drug": "Clarithromycin", "description": "May increase statin levels and risk of muscle toxicity (rhabdomyolysis)."},
+                {"drug": "Diltiazem", "description": "May increase atorvastatin levels, potentially requiring dose adjustment."},
+                {"drug": "Gemfibrozil", "description": "Increased risk of muscle toxicity when combined with statins."},
+            ],
+            "omeprazole": [
+                {"drug": "Clopidogrel", "description": "May reduce the effectiveness of clopidogrel by inhibiting its activation."},
+                {"drug": "Warfarin", "description": "May increase warfarin levels, requiring closer INR monitoring."},
+                {"drug": "Methotrexate", "description": "May increase methotrexate levels, especially at high doses."},
+            ],
+            "amoxicillin": [
+                {"drug": "Oral Contraceptives", "description": "May reduce the effectiveness of birth control pills."},
+                {"drug": "Warfarin", "description": "May enhance warfarin's effect, increasing bleeding risk."},
+                {"drug": "Methotrexate", "description": "May reduce methotrexate clearance, increasing toxicity risk."},
+            ],
+            "paracetamol": [
+                {"drug": "Warfarin", "description": "Regular use (4+ days) may increase INR and bleeding risk."},
+                {"drug": "Alcohol", "description": "Chronic alcohol use increases risk of liver damage from acetaminophen."},
+                {"drug": "Carbamazepine", "description": "May increase metabolism of acetaminophen, reducing effectiveness and increasing toxic metabolite formation."},
+            ],
+            "acetaminophen": [
+                {"drug": "Warfarin", "description": "Regular use (4+ days) may increase INR and bleeding risk."},
+                {"drug": "Alcohol", "description": "Chronic alcohol use increases risk of liver damage from acetaminophen."},
+                {"drug": "Isoniazid", "description": "May increase risk of liver toxicity from acetaminophen."},
+            ]
+        }
+        
+        # Normalize drug name for lookup
+        drug_lookup = drug_name.lower().strip()
+        
+        # Check if we have interactions for this drug
+        if drug_lookup in common_interactions:
+            return common_interactions[drug_lookup]
+        
+        return []
+    
     def get_drug_interactions(self, drug_name: str) -> List[Dict[str, str]]:
         """
         Get drug-drug interactions from multiple sources.
@@ -104,9 +188,17 @@ class DrugInfoFetcher:
         try:
             rxcui = self.get_rxcui(drug_name)
             if not rxcui:
+                # Try common interactions database as fallback
+                common_interactions = self._get_common_drug_interactions(drug_name)
+                if common_interactions:
+                    return common_interactions
                 return [{"drug": "Could not find drug in database", "description": ""}]
         except Exception as e:
             logger.error(f"Error getting RxCUI for {drug_name}: {str(e)}")
+            # Try common interactions database as fallback
+            common_interactions = self._get_common_drug_interactions(drug_name)
+            if common_interactions:
+                return common_interactions
             return [{"drug": "Error fetching drug information", "description": ""}]
             
         # Try RxNav's interaction API (using the list endpoint which is more reliable)
@@ -178,6 +270,11 @@ class DrugInfoFetcher:
                 if len(unique_interactions) >= 10:
                     break
             return unique_interactions
+            
+        # Try common interactions database as final fallback
+        common_interactions = self._get_common_drug_interactions(drug_name)
+        if common_interactions:
+            return common_interactions
             
         # No interactions found from any source
         return [{"drug": "No major interactions found", "description": "This drug has no major known interactions in the database. Always consult your healthcare provider before combining medications."}]
