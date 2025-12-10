@@ -20,6 +20,23 @@ from agents.approval_predictor import ApprovalPredictor
 from agents.paper_analyzer import PaperAnalyzer
 from features.voice_assistant import VoiceAssistant
 
+# Helper function to run async code in Streamlit
+def run_async(coro):
+    """Run async coroutine in Streamlit's event loop."""
+    try:
+        loop = asyncio.get_event_loop()
+    except RuntimeError:
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+    
+    if loop.is_running():
+        # If loop is already running (Streamlit Cloud), use nest_asyncio
+        import nest_asyncio
+        nest_asyncio.apply()
+        return asyncio.run(coro)
+    else:
+        return loop.run_until_complete(coro)
+
 def render_advanced_features_page():
     """Main page for advanced patent-worthy features."""
     
@@ -96,7 +113,7 @@ def render_repurposing_feature():
             
             # Run async function
             target = None if target_disease == "All Diseases" else target_disease.lower()
-            candidates = asyncio.run(
+            candidates = run_async(
                 agent.analyze_repurposing_opportunities(drug_name, target)
             )
             
@@ -188,7 +205,7 @@ def render_adverse_event_feature():
             ) if comorbidities or concurrent_meds else None
             
             # Predict
-            predictions = asyncio.run(
+            predictions = run_async(
                 predictor.predict_adverse_events(drug_name, profile, duration)
             )
             
@@ -298,7 +315,7 @@ def render_approval_predictor_feature():
                 "prior_rejection": False
             }
             
-            prediction = asyncio.run(
+            prediction = run_async(
                 predictor.predict_approval(drug_name, indication, clinical_data, regulatory_status)
             )
             
@@ -390,7 +407,7 @@ benefit in advanced cancer with a manageable safety profile.""",
                 "pmid": "38234567"
             }
             
-            summary = asyncio.run(analyzer.analyze_paper(paper_data))
+            summary = run_async(analyzer.analyze_paper(paper_data))
             
             # Display summary
             st.success("✅ Analysis Complete!")
@@ -451,7 +468,7 @@ def render_voice_assistant_feature():
             with st.spinner("Processing command..."):
                 assistant = VoiceAssistant()
                 
-                result = asyncio.run(assistant.process_voice_command(command))
+                result = run_async(assistant.process_voice_command(command))
                 
                 # Display results
                 st.success(f"✅ Intent: **{result.intent.replace('_', ' ').title()}**")

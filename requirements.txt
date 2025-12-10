@@ -55,7 +55,7 @@ networkx  # For drug interaction network visualization
 scipy  # For pharmacokinetic modeling
 scikit-learn # For ML-based predictions
 aiohttp  # For async API calls
-asyncio  # For concurrent operations
+nest-asyncio  # For nested event loop support in Streamlit
 
 # Voice Assistant (Optional - uncomment if using)
 SpeechRecognition>=3.10.0  # For speech-to-text
