@@ -109,28 +109,36 @@ class DrugInfoFetcher:
             logger.error(f"Error getting RxCUI for {drug_name}: {str(e)}")
             return [{"drug": "Error fetching drug information", "description": ""}]
             
-        # Try RxNav's interaction API first
+        # Try RxNav's interaction API (using the list endpoint which is more reliable)
         try:
-            url = f"{self.rxnav_base}/interaction/interaction.json"
-            params = {'rxcui': rxcui}
+            # Use the findInteractionsFromList endpoint with just this drug
+            url = f"{self.rxnav_base}/interaction/list.json"
+            params = {'rxcuis': rxcui}
             response = self.session.get(url, params=params, timeout=10)
             
             if response.status_code == 200:
                 data = response.json()
-                interaction_groups = data.get("interactionTypeGroup", [])
+                full_interaction_list = data.get("fullInteractionTypeGroup", [])
                 
-                for group in interaction_groups:
-                    for interaction_type in group.get("interactionType", []):
+                for group in full_interaction_list:
+                    source_name = group.get("sourceName", "")
+                    for interaction_type in group.get("fullInteractionType", []):
                         for pair in interaction_type.get("interactionPair", []):
                             try:
-                                drug = pair["interactionConcept"][1]["sourceConceptItem"]["name"]
-                                desc = pair.get("description", "").strip()
-                                if desc:
-                                    interactions.append({
-                                        "drug": drug,
-                                        "description": desc
-                                    })
-                            except (KeyError, IndexError):
+                                # Get the other drug in the interaction
+                                concepts = pair.get("interactionConcept", [])
+                                if len(concepts) >= 2:
+                                    # The second concept is usually the interacting drug
+                                    other_drug = concepts[1].get("minConceptItem", {}).get("name", "")
+                                    desc = pair.get("description", "").strip()
+                                    
+                                    if other_drug and desc:
+                                        interactions.append({
+                                            "drug": other_drug,
+                                            "description": f"{desc} (Source: {source_name})"
+                                        })
+                            except (KeyError, IndexError, TypeError) as e:
+                                logger.debug(f"Skipping malformed interaction pair: {e}")
                                 continue
         except Exception as e:
             logger.warning(f"Error fetching RxNav interactions for {drug_name}: {str(e)}")
