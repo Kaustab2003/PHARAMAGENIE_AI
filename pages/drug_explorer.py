@@ -240,66 +240,55 @@ def main():
                 # Store drug info in session state for reports
                 st.session_state['current_drug_info'] = drug_info
                 
-                # Download and Email report options
+                # PDF Download Option
                 st.markdown("---")
                 st.subheader("📄 Export Options")
                 
-                col1, col2, col3 = st.columns([1, 1, 2])
-                
-                with col1:
-                    if st.button("📥 Download PDF Report", type="secondary", use_container_width=True):
-                        with st.spinner("Generating PDF report..."):
-                            try:
-                                # Prepare data for PDF
-                                pdf_data = {
-                                    'drug_name': drug_info['drug_name'],
-                                    'therapeutic_area': drug_info['drug_class'],
-                                    'report_type': 'Drug Information Report',
-                                    'overview': {
-                                        'Drug Name': drug_info['drug_name'],
-                                        'RxCUI': drug_info.get('rxcui', 'N/A'),
-                                        'Classification': drug_info['drug_class'],
-                                        'Mechanism': drug_info['mechanism_of_action'],
-                                        'Uses': drug_info['uses']
-                                    },
-                                    'molecular_info': drug_info['molecular_info'],
-                                    'safety': {
-                                        'Adverse Effects': ', '.join(drug_info.get('adverse_effects', [])[:10]),
-                                        'Food Interactions': drug_info.get('food_interactions', 'N/A')
-                                    },
-                                    'interactions': drug_info.get('drug_interactions', [])
-                                }
-                                
-                                # Generate PDF
-                                generator = ReportGenerator()
-                                pdf_bytes = generator.generate_pdf(pdf_data)
-                                
-                                # Create download button
-                                b64 = base64.b64encode(pdf_bytes).decode()
-                                filename = f"{drug_info['drug_name'].replace(' ', '_')}_Report_{datetime.now().strftime('%Y%m%d')}.pdf"
-                                
-                                href = f'<a href="data:application/pdf;base64,{b64}" download="{filename}">Click here if download doesn\'t start automatically</a>'
-                                
-                                st.download_button(
-                                    label="⬇️ Download PDF",
-                                    data=pdf_bytes,
-                                    file_name=filename,
-                                    mime="application/pdf",
-                                    use_container_width=True
-                                )
-                                st.success("✅ PDF generated successfully!")
-                                
-                            except Exception as e:
-                                st.error(f"❌ Error generating PDF: {str(e)}")
-                                st.info("💡 Please try again or contact support if the issue persists.")
-                
-                with col2:
-                    if st.button("📧 Email Report", type="secondary", use_container_width=True):
-                        # Navigate to email reports page
-                        st.session_state['current_analysis'] = drug_info
-                        st.session_state['analysis_type'] = 'drug_explorer'
-                        st.info("📧 Email functionality available in the 'Email Reports' page in the sidebar.")
-                        st.info("👈 Click 'Email Reports' in the navigation menu to send this report via email.")
+                if st.button("📥 Download PDF Report", type="primary", use_container_width=False):
+                    with st.spinner("Generating PDF report..."):
+                        try:
+                            # Prepare data for PDF
+                            pdf_data = {
+                                'drug_name': drug_info['drug_name'],
+                                'therapeutic_area': drug_info['drug_class'],
+                                'report_type': 'Drug Information Report',
+                                'overview': {
+                                    'Drug Name': drug_info['drug_name'],
+                                    'RxCUI': drug_info.get('rxcui', 'N/A'),
+                                    'Classification': drug_info['drug_class'],
+                                    'Mechanism': drug_info['mechanism_of_action'],
+                                    'Uses': drug_info['uses']
+                                },
+                                'molecular_info': drug_info['molecular_info'],
+                                'safety': {
+                                    'Adverse Effects': ', '.join(drug_info.get('adverse_effects', [])[:10]),
+                                    'Food Interactions': drug_info.get('food_interactions', 'N/A')
+                                },
+                                'interactions': drug_info.get('drug_interactions', [])
+                            }
+                            
+                            # Generate PDF
+                            generator = ReportGenerator()
+                            pdf_bytes = generator.generate_pdf(pdf_data)
+                            
+                            # Create download button
+                            b64 = base64.b64encode(pdf_bytes).decode()
+                            filename = f"{drug_info['drug_name'].replace(' ', '_')}_Report_{datetime.now().strftime('%Y%m%d')}.pdf"
+                            
+                            href = f'<a href="data:application/pdf;base64,{b64}" download="{filename}">Click here if download doesn\'t start automatically</a>'
+                            
+                            st.download_button(
+                                label="⬇️ Download PDF",
+                                data=pdf_bytes,
+                                file_name=filename,
+                                mime="application/pdf",
+                                use_container_width=False
+                            )
+                            st.success("✅ PDF generated successfully!")
+                            
+                        except Exception as e:
+                            st.error(f"❌ Error generating PDF: {str(e)}")
+                            st.info("💡 Please try again or contact support if the issue persists.")
     
     # Information section
     with st.expander("ℹ️ About Drug Explorer"):
