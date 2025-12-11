@@ -22,7 +22,7 @@
 </div>
 
 ---
-## link -[ https://pharamagenieai-25kemo7exzca8xnrhw8zjv.streamlit.app/]
+## link -[https://pharamagenieai-25kemo7exzca8xnrhw8zjv.streamlit.app/]
 
 ## 🌟 What is PharmaGenie AI?
 
