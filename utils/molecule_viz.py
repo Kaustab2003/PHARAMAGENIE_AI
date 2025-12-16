@@ -537,9 +537,22 @@ class MoleculeVisualizer:
             st.subheader("3D Structure")
             st.info("Click and drag to rotate, scroll to zoom, right-click to pan")
 
-            # If the user enabled 3D generation, compute and show it. Otherwise
-            # offer a button to compute it on demand.
+            # Initialize session state for 3D generation
+            session_key = f"show_3d_{drug_name}"
+            if session_key not in st.session_state:
+                st.session_state[session_key] = show_3d
+            
+            # If the user enabled 3D generation via checkbox, update session state
             if show_3d:
+                st.session_state[session_key] = True
+            
+            # Check if user clicked the generate button
+            gen_clicked = st.button("Generate 3D structure", key=f"gen3d_{drug_name}")
+            if gen_clicked:
+                st.session_state[session_key] = True
+            
+            # Display 3D structure if enabled or button was clicked
+            if st.session_state[session_key]:
                 with st.spinner("Generating 3D structure..."):
                     html = self.draw_3d_molecule(mol, width=600, height=400)
                 if html:
@@ -547,16 +560,7 @@ class MoleculeVisualizer:
                 else:
                     st.warning("Could not generate 3D visualization")
             else:
-                gen_clicked = st.button("Generate 3D structure", key=f"gen3d_{drug_name}")
-                if gen_clicked:
-                    with st.spinner("Generating 3D structure..."):
-                        html = self.draw_3d_molecule(mol, width=600, height=400)
-                    if html:
-                        components.html(html, height=420)
-                    else:
-                        st.warning("Could not generate 3D visualization")
-                else:
-                    st.write("3D generation is disabled. Enable the checkbox or click the button to generate the 3D view (this may take longer).")
+                st.write("Click 'Generate 3D structure' button or enable the checkbox above to view the 3D molecular structure (this may take several seconds).")
         
         # Add download button
         self._add_download_button(mol, drug_name)
