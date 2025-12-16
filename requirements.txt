@@ -57,10 +57,10 @@ scikit-learn # For ML-based predictions
 aiohttp  # For async API calls
 nest-asyncio  # For nested event loop support in Streamlit
 
-# Voice Assistant (Optional - uncomment if using)
+# Voice Assistant
 SpeechRecognition>=3.10.0  # For speech-to-text
 pydub>=0.25.1  # For audio processing
-sounddevice>=0.4.6  # For audio recording
+pyaudio>=0.2.11  # For audio recording (better Streamlit compatibility)
 
 # Web3 & Blockchain (Optional - uncomment if using)
 # web3  # For blockchain integration

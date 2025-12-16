@@ -139,28 +139,41 @@ class VoiceAssistant:
         """Extract entities (drug names, conditions, etc.) from text."""
         entities = {}
         
-        # Common drug names (in production, use NER model)
+        # Expanded common drug names
         drug_names = [
-            "aspirin", "ibuprofen", "metformin", "lisinopril",
-            "warfarin", "atorvastatin", "omeprazole", "levothyroxine"
+            "aspirin", "ibuprofen", "metformin", "lisinopril", "acetaminophen", "paracetamol",
+            "warfarin", "atorvastatin", "omeprazole", "levothyroxine", "amoxicillin",
+            "amlodipine", "simvastatin", "losartan", "gabapentin", "hydrochlorothiazide",
+            "metoprolol", "albuterol", "furosemide", "pantoprazole", "tramadol",
+            "sertraline", "escitalopram", "fluoxetine", "citalopram", "duloxetine",
+            "prednisone", "montelukast", "rosuvastatin", "clopidogrel", "insulin"
         ]
         
         # Extract drug names
-        found_drugs = [drug for drug in drug_names if drug in text]
+        found_drugs = [drug for drug in drug_names if drug in text.lower()]
         if found_drugs:
             entities['drug'] = found_drugs[0]
             if len(found_drugs) > 1:
                 entities['drug2'] = found_drugs[1]
         
         # Extract conditions
-        conditions = ["hypertension", "diabetes", "heart disease", "cancer"]
-        found_conditions = [cond for cond in conditions if cond in text]
+        conditions = [
+            "hypertension", "high blood pressure", "diabetes", "heart disease", 
+            "cancer", "pain", "headache", "fever", "infection", "depression",
+            "anxiety", "cholesterol", "asthma", "arthritis"
+        ]
+        found_conditions = [cond for cond in conditions if cond in text.lower()]
         if found_conditions:
             entities['condition'] = found_conditions[0]
         
-        # If no entities found, use AI to extract
-        if not entities and self.api_client:
-            entities = await self._ai_extract_entities(text)
+        # Use AI to extract if no entities found or for better accuracy
+        if (not entities or len(entities) < 2) and self.api_client:
+            try:
+                ai_entities = await self._ai_extract_entities(text)
+                # Merge AI entities with found entities (AI takes priority for new keys)
+                entities.update(ai_entities)
+            except Exception as e:
+                logger.warning(f"AI entity extraction failed: {e}")
         
         return entities
     
@@ -169,23 +182,47 @@ class VoiceAssistant:
         try:
             client = self.api_client.get_client()
             
-            prompt = f"""Extract key entities from this pharmaceutical query: "{text}"
-Return as JSON with keys: drug, condition, dosage, timeframe
-Only include keys if they are mentioned. Example: {{"drug": "aspirin", "condition": "headache"}}"""
+            prompt = f"""Extract key pharmaceutical entities from this query: "{text}"
 
-            response = client.chat.completions.create(
-                model=self.api_client.get_model(),
+Return ONLY a valid JSON object with these keys (include only if mentioned):
+- drug: medication name
+- drug2: second medication (for comparisons)
+- condition: medical condition or symptom
+- dosage: dosage amount
+- timeframe: time-related info
+
+Example response: {{"drug": "aspirin", "condition": "headache"}}
+
+Response (JSON only):"""
+
+            response = self.api_client.chat_completion(
                 messages=[
-                    {"role": "system", "content": "You are a medical NLP expert."},
+                    {"role": "system", "content": "You are a medical NLP expert. Respond only with valid JSON."},
                     {"role": "user", "content": prompt}
                 ],
-                temperature=0.2,
-                max_tokens=100
+                temperature=0.1,
+                max_tokens=150
             )
             
-            entities = json.loads((response.choices[0].message.content or "").strip())
+            content = (response.choices[0].message.content or "").strip()
+            
+            # Try to extract JSON from response
+            if "```json" in content:
+                content = content.split("```json")[1].split("```")[0].strip()
+            elif "```" in content:
+                content = content.split("```")[1].split("```")[0].strip()
+            
+            entities = json.loads(content)
+            
+            # Validate entities is a dict
+            if not isinstance(entities, dict):
+                return {}
+            
             return entities
             
+        except json.JSONDecodeError as e:
+            logger.error(f"JSON decode error: {e}, content: {content if 'content' in locals() else 'N/A'}")
+            return {}
         except Exception as e:
             logger.error(f"Error extracting entities: {e}")
             return {}
@@ -203,29 +240,45 @@ Only include keys if they are mentioned. Example: {{"drug": "aspirin", "conditio
             return self._generate_template_response(intent, entities)
         
         try:
+            # Get drug information if drug entity exists
+            drug_context = ""
+            if 'drug' in entities:
+                drug_context = await self._get_drug_context(entities['drug'], intent)
+            
             client = self.api_client.get_client()
+            
+            # Build enhanced system prompt with drug context
+            system_content = f"""You are PharmaGenie AI Voice Assistant, a pharmaceutical information expert.
+
+INSTRUCTIONS:
+1. Use the drug information provided below to answer the user's question accurately
+2. Be specific and cite the actual data from the context
+3. Keep responses clear and under 150 words
+4. Always include safety warnings when relevant
+5. If the context has limited info, acknowledge it but provide what's available
+
+DRUG INFORMATION CONTEXT:
+{drug_context}
+
+Now answer the user's question based on this information."""
             
             # Build context from conversation history
             context_messages = [
-                {"role": "system", "content": """You are PharmaGenie AI Voice Assistant. 
-                Provide concise, accurate pharmaceutical information.
-                Keep responses under 100 words for voice playback.
-                Always prioritize patient safety."""}
+                {"role": "system", "content": system_content}
             ]
             
             # Add recent history
-            for cmd in self.conversation_history[-3:]:
+            for cmd in self.conversation_history[-2:]:
                 context_messages.append({"role": "user", "content": cmd.raw_text})
                 context_messages.append({"role": "assistant", "content": cmd.response})
             
             # Current query
             context_messages.append({"role": "user", "content": text})
             
-            response = client.chat.completions.create(
-                model=self.api_client.get_model(),
+            response = self.api_client.chat_completion(
                 messages=context_messages,
                 temperature=0.4,
-                max_tokens=150
+                max_tokens=200
             )
             
             response_text = (response.choices[0].message.content or "").strip()
@@ -239,6 +292,84 @@ Only include keys if they are mentioned. Example: {{"drug": "aspirin", "conditio
             logger.error(f"Error generating response: {e}")
             return self._generate_template_response(intent, entities)
     
+    async def _get_drug_context(self, drug_name: str, intent: str) -> str:
+        """Fetch relevant drug information based on intent."""
+        try:
+            # Import here to avoid circular dependency
+            import sys
+            import os
+            sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
+            
+            from utils.drug_info_fetcher import get_drug_info
+            
+            # Get comprehensive drug info (synchronous call)
+            drug_info = get_drug_info(drug_name)
+            
+            if not drug_info or drug_info.get('status') == 'error':
+                return f"Note: Limited information available for {drug_name}."
+            
+            context_parts = []
+            
+            # Add drug name and basic info
+            context_parts.append(f"=== DRUG INFORMATION FOR {drug_info.get('drug_name', drug_name.upper())} ===")
+            
+            # Add RxCUI if available
+            if drug_info.get('rxcui'):
+                context_parts.append(f"RxCUI: {drug_info['rxcui']}")
+            
+            # Add drug class
+            if drug_info.get('drug_class') and drug_info['drug_class'] != "Not available":
+                context_parts.append(f"Drug Class: {drug_info['drug_class']}")
+            
+            # Add uses/description
+            if drug_info.get('uses') and drug_info['uses'] != "Not available":
+                uses_text = drug_info['uses'][:300] if len(drug_info['uses']) > 300 else drug_info['uses']
+                context_parts.append(f"Uses: {uses_text}")
+            
+            # Add mechanism of action for search queries
+            if intent in ["search_drug"] and drug_info.get('mechanism_of_action'):
+                if drug_info['mechanism_of_action'] != "Not available":
+                    moa_text = drug_info['mechanism_of_action'][:200]
+                    context_parts.append(f"Mechanism: {moa_text}")
+            
+            # Add adverse effects for side effect queries
+            if intent == "adverse_events" and drug_info.get('adverse_effects'):
+                effects = drug_info['adverse_effects'][:8]
+                if effects:
+                    context_parts.append(f"Common Side Effects: {', '.join(effects)}")
+            
+            # Add interactions
+            if intent == "interactions" and drug_info.get('drug_interactions'):
+                interactions = drug_info['drug_interactions'][:5]
+                if interactions:
+                    interaction_texts = []
+                    for interaction in interactions:
+                        if isinstance(interaction, dict):
+                            desc = interaction.get('description', interaction.get('name', ''))
+                            if desc:
+                                interaction_texts.append(desc)
+                        elif isinstance(interaction, str):
+                            interaction_texts.append(interaction)
+                    
+                    if interaction_texts:
+                        context_parts.append(f"Drug Interactions: {'; '.join(interaction_texts)}")
+            
+            # Add molecular info if available
+            if drug_info.get('molecular_info'):
+                mol_info = drug_info['molecular_info']
+                if mol_info.get('molecular_formula'):
+                    context_parts.append(f"Formula: {mol_info['molecular_formula']}")
+                if mol_info.get('molecular_weight'):
+                    context_parts.append(f"Molecular Weight: {mol_info['molecular_weight']}")
+            
+            result = "\n".join(context_parts)
+            logger.info(f"Drug context for {drug_name}: {len(result)} characters")
+            return result if context_parts else f"Basic information available for {drug_name}."
+            
+        except Exception as e:
+            logger.error(f"Error fetching drug context: {e}", exc_info=True)
+            return f"Processing information for {drug_name}. Please ask me to provide specific details."
+    
     def _generate_template_response(
         self,
         intent: str,
@@ -248,17 +379,65 @@ Only include keys if they are mentioned. Example: {{"drug": "aspirin", "conditio
         drug = entities.get('drug', 'the medication')
         condition = entities.get('condition', '')
         
-        responses = {
-            "search_drug": f"Let me search for information about {drug}.",
-            "adverse_events": f"I'll look up the safety profile and adverse events for {drug}.",
-            "interactions": f"Checking drug interactions for {drug}.",
-            "clinical_trials": f"Searching clinical trial data for {drug}.",
-            "repurposing": f"Looking for alternative uses of {drug}.",
-            "dosage": f"Finding dosage information for {drug}.",
-            "compare": f"I'll compare the medications you mentioned.",
-        }
+        # Try to get actual drug information
+        try:
+            from utils.drug_info_fetcher import get_drug_info
+            drug_info = get_drug_info(drug)
+            
+            if drug_info and drug_info.get('status') != 'error':
+                # Build response based on intent with actual data
+                if intent == "adverse_events" and drug_info.get('adverse_effects'):
+                    effects = drug_info['adverse_effects'][:5]
+                    effects_text = ", ".join(effects)
+                    response = f"{drug.title()} common side effects include: {effects_text}. Always consult your healthcare provider if you experience any concerning symptoms."
+                
+                elif intent == "interactions" and drug_info.get('drug_interactions'):
+                    interactions = drug_info['drug_interactions'][:3]
+                    int_texts = []
+                    for interaction in interactions:
+                        if isinstance(interaction, dict):
+                            int_texts.append(interaction.get('description', interaction.get('name', '')))
+                        else:
+                            int_texts.append(str(interaction))
+                    
+                    if int_texts:
+                        response = f"{drug.title()} may interact with: {', '.join(int_texts)}. Consult your healthcare provider before combining medications."
+                    else:
+                        response = f"Limited interaction data available for {drug}. Please consult your pharmacist or healthcare provider."
+                
+                elif intent == "search_drug":
+                    uses = drug_info.get('uses', 'Not available')
+                    drug_class = drug_info.get('drug_class', 'Not available')
+                    response = f"{drug.title()} ({drug_class}) is used for: {uses[:200]}..."
+                
+                else:
+                    response = f"{drug.title()} information: {drug_info.get('uses', 'Information available')[:150]}..."
+            else:
+                # Fallback to generic template
+                responses = {
+                    "search_drug": f"Let me search for information about {drug}.",
+                    "adverse_events": f"I'll look up the safety profile and adverse events for {drug}.",
+                    "interactions": f"Checking drug interactions for {drug}.",
+                    "clinical_trials": f"Searching clinical trial data for {drug}.",
+                    "repurposing": f"Looking for alternative uses of {drug}.",
+                    "dosage": f"Finding dosage information for {drug}.",
+                    "compare": f"I'll compare the medications you mentioned.",
+                }
+                response = responses.get(intent, f"I can help you with information about {drug}.")
+                
+        except Exception as e:
+            logger.error(f"Error in template response: {e}")
+            responses = {
+                "search_drug": f"Let me search for information about {drug}.",
+                "adverse_events": f"I'll look up the safety profile and adverse events for {drug}.",
+                "interactions": f"Checking drug interactions for {drug}.",
+                "clinical_trials": f"Searching clinical trial data for {drug}.",
+                "repurposing": f"Looking for alternative uses of {drug}.",
+                "dosage": f"Finding dosage information for {drug}.",
+                "compare": f"I'll compare the medications you mentioned.",
+            }
+            response = responses.get(intent, f"I can help you with information about {drug}.")
         
-        response = responses.get(intent, f"I can help you with information about {drug}.")
         suggested_actions = self._get_suggested_actions(intent, entities)
         
         return response, suggested_actions

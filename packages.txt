@@ -10,3 +10,7 @@ libglib2.0-0
 libcairo2
 libxcb1
 libgomp1
+portaudio19-dev
+python3-pyaudio
+libasound2-dev
+ffmpeg

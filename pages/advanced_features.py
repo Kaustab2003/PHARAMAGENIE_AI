@@ -447,89 +447,115 @@ def render_voice_assistant_feature():
     
     st.info("""
     **Patent-Worthy Innovation**: Hands-free pharmaceutical research
-    - Medical terminology-aware NLP
+    - Medical terminology-aware NLP with voice input
     - Context-aware multi-turn conversations
     - Multi-language support with drug name translation
     """)
     
-    st.warning("Voice input requires additional dependencies. Text demo available below.")
+    # Voice and text input tabs
+    tab1, tab2 = st.tabs(["🎤 Voice Input", "⌨️ Text Input"])
     
-    # Text-based demo
-    st.subheader("Text Command Demo")
+    with tab1:
+        st.subheader("Voice Command Input")
+        
+        try:
+            import speech_recognition as sr
+            
+            st.info("""
+            **How to use voice input:**
+            1. Click the "🎙️ Start Recording" button
+            2. Allow microphone access if prompted
+            3. Speak your question clearly
+            4. Click "Stop Recording" when done
+            5. Wait for speech recognition to process
+            """)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                record_button = st.button("🎙️ Start Recording", type="primary", use_container_width=True)
+            with col2:
+                stop_button = st.button("⏹️ Stop Recording", use_container_width=True)
+            
+            if 'recording_audio' not in st.session_state:
+                st.session_state.recording_audio = None
+            
+            if record_button:
+                with st.spinner("🎙️ Listening... Speak now!"):
+                    try:
+                        recognizer = sr.Recognizer()
+                        with sr.Microphone() as source:
+                            st.info("🔴 Recording... Speak your question")
+                            # Adjust for ambient noise
+                            recognizer.adjust_for_ambient_noise(source, duration=0.5)
+                            # Listen for audio
+                            audio = recognizer.listen(source, timeout=10, phrase_time_limit=15)
+                            st.session_state.recording_audio = audio
+                            st.success("✅ Recording complete! Processing speech...")
+                            
+                            # Convert speech to text
+                            try:
+                                command = recognizer.recognize_google(audio)
+                                st.session_state.voice_command = command
+                                st.success(f"🎯 Recognized: \"{command}\"")
+                                
+                                # Process the command
+                                with st.spinner("Processing command..."):
+                                    assistant = VoiceAssistant()
+                                    result = run_async(assistant.process_voice_command(command))
+                                    
+                                    # Display results
+                                    st.success(f"✅ Intent: **{result.intent.replace('_', ' ').title()}**")
+                                    st.metric("Confidence", f"{result.confidence:.0%}")
+                                    
+                                    if result.entities:
+                                        st.write("**Detected Entities:**")
+                                        for key, value in result.entities.items():
+                                            st.write(f"- {key.title()}: {value}")
+                                    
+                                    st.subheader("Response")
+                                    st.info(result.response)
+                                    
+                            except sr.UnknownValueError:
+                                st.error("❌ Could not understand audio. Please try again.")
+                            except sr.RequestError as e:
+                                st.error(f"❌ Speech recognition service error: {e}")
+                                
+                    except Exception as e:
+                        st.error(f"❌ Microphone error: {str(e)}")
+                        st.warning("Make sure your microphone is connected and browser has permission.")
+                        
+        except ImportError:
+            st.error("❌ Voice input dependencies not installed.")
+            st.info("Install required packages: `pip install SpeechRecognition pyaudio pydub`")
+            st.warning("On Windows, you may need to install PyAudio from: https://www.lfd.uci.edu/~gohlke/pythonlibs/#pyaudio")
     
-    command = st.text_input(
-        "Enter your question",
-        placeholder="Tell me about aspirin side effects",
-        help="Try: 'What is metformin?', 'Side effects of warfarin', 'Compare aspirin and ibuprofen'"
-    )
-    
-    if st.button("🗣️ Process Command", type="primary"):
-        if command:
-            with st.spinner("Processing command..."):
-                assistant = VoiceAssistant()
-                
-                result = run_async(assistant.process_voice_command(command))
-                
-                # Display results
-                st.success(f"✅ Intent: **{result.intent.replace('_', ' ').title()}**")
-                st.metric("Confidence", f"{result.confidence:.0%}")
-                
-                if result.entities:
-                    st.write("**Detected Entities:**")
-                    for key, value in result.entities.items():
-                        st.write(f"- {key.title()}: {value}")
-                
-                st.subheader("Response")
-                st.info(result.response)
-                
-                st.subheader("Suggested Actions")
-                
-                # Store detected drug in session state
-                detected_drug = result.entities.get('drug', 'aspirin')
-                
-                # Create functional action buttons
-                col1, col2, col3 = st.columns(3)
-                
-                with col1:
-                    if "View detailed drug profile" in result.suggested_actions or "view" in result.intent.lower():
-                        if st.button("📋 View detailed drug profile", key="action_profile", use_container_width=True):
-                            st.session_state['drug_search_query'] = detected_drug
-                            st.info(f"✅ Saved! Now navigate to **💊 Drug Explorer** from the sidebar to view {detected_drug}'s profile")
-                
-                with col2:
-                    if "Check side effects" in result.suggested_actions or "adverse" in result.intent.lower() or "side" in result.intent.lower():
-                        if st.button("⚠️ Check side effects", key="action_side_effects", use_container_width=True):
-                            st.session_state['drug_search_query'] = detected_drug
-                            st.info(f"✅ Saved! Navigate to **💊 Drug Explorer** or **Analysis** page to check {detected_drug}'s side effects")
-                
-                with col3:
-                    if "See clinical trials" in result.suggested_actions or "trial" in result.intent.lower() or "clinical" in result.intent.lower():
-                        if st.button("🔬 See clinical trials", key="action_trials", use_container_width=True):
-                            st.session_state['drug_search_query'] = detected_drug
-                            st.info(f"✅ Saved! Navigate to **Analysis** page and search for {detected_drug} to see clinical trials")
-                
-                # Show stored search query
-                if 'drug_search_query' in st.session_state:
-                    st.success(f"""
-                    📌 **Quick Access Instructions:**
+    with tab2:
+        st.subheader("Text Command Input")
+        
+        command = st.text_input(
+            "Enter your question",
+            placeholder="Tell me about aspirin side effects",
+            help="Try: 'What is metformin?', 'Side effects of warfarin', 'Compare aspirin and ibuprofen'"
+        )
+        
+        if st.button("🗣️ Process Command", type="primary"):
+            if command:
+                with st.spinner("Processing command..."):
+                    assistant = VoiceAssistant()
                     
-                    Your saved search: **{st.session_state['drug_search_query']}**
+                    result = run_async(assistant.process_voice_command(command))
                     
-                    **Option 1: Drug Explorer (Recommended)**
-                    1. Click **💊 Drug Explorer** in the sidebar
-                    2. Enter: `{st.session_state['drug_search_query']}`
-                    3. View complete drug information including side effects
+                    # Display results
+                    st.success(f"✅ Intent: **{result.intent.replace('_', ' ').title()}**")
+                    st.metric("Confidence", f"{result.confidence:.0%}")
                     
-                    **Option 2: Full Analysis**
-                    1. Click **Analysis** in the sidebar
-                    2. Enter: `{st.session_state['drug_search_query']}`
-                    3. View clinical trials, FDA data, and more
-                    """)
+                    if result.entities:
+                        st.write("**Detected Entities:**")
+                        for key, value in result.entities.items():
+                            st.write(f"- {key.title()}: {value}")
                     
-                    # Clear button
-                    if st.button("🗑️ Clear saved search", key="clear_search"):
-                        del st.session_state['drug_search_query']
-                        st.rerun()
+                    st.subheader("Response")
+                    st.info(result.response)
 
 
 def render_feature_comparison():

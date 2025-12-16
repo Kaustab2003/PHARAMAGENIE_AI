@@ -121,48 +121,36 @@ class UnifiedAPIClient:
         Returns:
             Chat completion response
         """
-        client = self.get_client()
-        model = self.get_model()
+        # Try fallback providers in order
+        priority_order = ["groq", "deepseek", "openai"]
         
-        try:
-            response = client.chat.completions.create(
-                model=model,
-                messages=messages,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                **kwargs
-            )
-            return response
-        except Exception as e:
-            logger.error(f"Error with {self.get_provider_name()}: {e}")
-            
-            # Try fallback providers
-            priority_order = ["deepseek", "groq", "openai"]
-            for provider_name in priority_order:
-                if provider_name != self.current_provider and provider_name in self.providers:
-                    logger.info(f"🔄 Falling back to {self.providers[provider_name]['name']}")
-                    try:
-                        fallback_client = self.providers[provider_name]["client"]
-                        fallback_model = self.providers[provider_name]["model"]
-                        
-                        response = fallback_client.chat.completions.create(
-                            model=fallback_model,
-                            messages=messages,
-                            temperature=temperature,
-                            max_tokens=max_tokens,
-                            **kwargs
-                        )
-                        
-                        # Update current provider on successful fallback
+        for provider_name in priority_order:
+            if provider_name in self.providers:
+                try:
+                    client = self.providers[provider_name]["client"]
+                    model = self.providers[provider_name]["model"]
+                    
+                    response = client.chat.completions.create(
+                        model=model,
+                        messages=messages,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        **kwargs
+                    )
+                    
+                    # Update current provider on success
+                    if self.current_provider != provider_name:
+                        logger.info(f"Using {self.providers[provider_name]['name']}")
                         self.current_provider = provider_name
-                        logger.info(f"✅ Successfully switched to {self.providers[provider_name]['name']}")
-                        return response
-                    except Exception as fallback_error:
-                        logger.error(f"Fallback to {provider_name} also failed: {fallback_error}")
-                        continue
-            
-            # All providers failed
-            raise Exception(f"All API providers failed. Last error: {e}")
+                    
+                    return response
+                    
+                except Exception as e:
+                    logger.warning(f"{self.providers[provider_name]['name']} failed: {str(e)[:100]}")
+                    continue
+        
+        # All providers failed
+        raise Exception("All API providers failed. Please check your API keys and balances.")
 
 # Global instance for easy access
 _global_client = None
