@@ -44,16 +44,30 @@ class TradeAgent:
         )
         return logging.getLogger(__name__)
     
-    def _make_api_request(self, base_url: str, endpoint: str, params: Optional[Dict] = None) -> Optional[Dict]:
-        """Make a request to a given API with error handling."""
-        try:
-            url = f"{base_url}/{endpoint}"
-            response = requests.get(url, params=params, timeout=10)
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.RequestException as e:
-            self.logger.error(f"API request failed: {str(e)}")
-            return None
+    def _make_api_request(self, base_url: str, endpoint: str, params: Optional[Dict] = None, retries: int = 3) -> Optional[Dict]:
+        """Make a request to a given API with error handling and retries."""
+        url = f"{base_url}/{endpoint}"
+        
+        for attempt in range(retries):
+            try:
+                self.logger.info(f"API request (attempt {attempt + 1}/{retries}): {url}")
+                response = requests.get(url, params=params, timeout=30)  # Increased timeout to 30s
+                response.raise_for_status()
+                return response.json()
+            except requests.exceptions.Timeout as e:
+                self.logger.warning(f"Timeout on attempt {attempt + 1}/{retries}: {str(e)}")
+                if attempt < retries - 1:
+                    continue  # Retry
+                else:
+                    self.logger.error(f"API request failed after {retries} attempts (timeout)")
+                    return None
+            except requests.exceptions.RequestException as e:
+                self.logger.error(f"API request failed on attempt {attempt + 1}: {str(e)}")
+                if attempt < retries - 1:
+                    continue  # Retry
+                else:
+                    return None
+        return None
     
     def get_trade_data(
         self, 
@@ -85,9 +99,13 @@ class TradeAgent:
         }
         
         base_url = self.sources['world_bank']
-        data = self._make_api_request(base_url, endpoint, params)
-        if not data or len(data) < 2:
-            self.logger.warning(f"No data found for country: {country_code}, indicator: {indicator}")
+        data = self._make_api_request(base_url, endpoint, params, retries=3)
+        if not data:
+            self.logger.error(f"API request failed for country: {country_code}, indicator: {indicator}")
+            return pd.DataFrame()
+        
+        if len(data) < 2:
+            self.logger.warning(f"No data found in API response for country: {country_code}, indicator: {indicator}")
             return pd.DataFrame()
         
         # Process the data

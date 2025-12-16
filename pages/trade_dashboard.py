@@ -56,7 +56,8 @@ class TradeDashboard:
             "Select Country",
             options=list(self.country_codes.items()),
             format_func=lambda x: x[1],  # Show full country name
-            index=0
+            index=0,
+            key="trade_country_selector"
         )
         country_code = selected_country[0]
         
@@ -65,7 +66,8 @@ class TradeDashboard:
             "Select Trade Indicator",
             options=list(self.indicators.items()),
             format_func=lambda x: x[1],  # Show full description
-            index=0
+            index=0,
+            key="trade_indicator_selector"
         )
         indicator_code = selected_indicator[0]
         
@@ -75,11 +77,18 @@ class TradeDashboard:
             "Select Year Range",
             min_value=1990,
             max_value=current_year,
-            value=(current_year - 10, current_year - 1)
+            value=(current_year - 10, current_year - 1),
+            key="trade_year_range_slider"
         )
         
+        # Show selected parameters
+        with st.sidebar.expander("🔍 Selected Parameters", expanded=False):
+            st.write(f"**Country:** {selected_country[1]} ({country_code})")
+            st.write(f"**Indicator:** {selected_indicator[1][:50]}...")
+            st.write(f"**Years:** {start_year} - {end_year}")
+        
         # Fetch data
-        with st.spinner("Loading trade data..."):
+        with st.spinner(f"Loading trade data for {selected_country[1]}..."):
             df = self.trade_agent.get_trade_data(
                 country_code=country_code,
                 indicator=indicator_code,
@@ -87,11 +96,25 @@ class TradeDashboard:
                 end_year=end_year
             )
         
-        # Display metrics
-        self._display_metrics(df, country_code, indicator_code)
-        
-        # Display charts
-        if not df.empty:
+        # Display data or error message
+        if df.empty:
+            st.error(f"⚠️ No data available for **{selected_country[1]}** ({country_code})")
+            st.info("""
+            **Possible reasons:**
+            - The selected country may not have data for this indicator
+            - The year range may not have available data
+            - The World Bank API may be temporarily unavailable
+            
+            **Try:**
+            - Selecting a different country (USA, China, Germany, etc.)
+            - Adjusting the year range
+            - Choosing a different trade indicator
+            """)
+        else:
+            # Display metrics
+            self._display_metrics(df, country_code, indicator_code)
+            
+            # Display charts
             self._display_trend_chart(df, selected_country[1], selected_indicator[1])
             
             # Show trade balance if available
@@ -107,8 +130,6 @@ class TradeDashboard:
                     }),
                     use_container_width=True
                 )
-        else:
-            st.warning("No data available for the selected filters.")
     
     def _display_metrics(self, df: pd.DataFrame, country_code: str, indicator_code: str):
         """Display key metrics."""
